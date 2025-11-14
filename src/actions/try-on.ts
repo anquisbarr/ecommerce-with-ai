@@ -73,52 +73,63 @@ async function loadProductImage(
     productImageUrl: string,
 ): Promise<string | null> {
     try {
-        // Método 1: Intentar cargar desde archivo local
-        try {
-            const productImagePath = path.join(
-                process.cwd(),
-                "public",
-                productImageUrl,
-            );
-            if (fs.existsSync(productImagePath)) {
-                const productBuffer = fs.readFileSync(productImagePath);
-                const productBase64 = productBuffer.toString("base64");
-                logTryOn(
-                    "Imagen del producto cargada desde archivo local",
-                    "info",
-                );
-                return `data:image/jpeg;base64,${productBase64}`;
-            }
-        } catch {
-            logTryOn(
-                "No se pudo cargar desde archivo local, intentando URL",
-                "info",
-            );
-        }
-
-        // Método 2: Si no se pudo cargar localmente, intentar desde URL
+        // Método 1: Intentar cargar desde URL (funciona en Vercel/Railway/Local)
         try {
             const fullProductUrl = productImageUrl.startsWith("http")
                 ? productImageUrl
                 : `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}${productImageUrl}`;
+
+            logTryOn(`Cargando imagen del producto desde: ${fullProductUrl}`, "info");
 
             const productResponse = await fetch(fullProductUrl);
             if (productResponse.ok) {
                 const productBuffer = await productResponse.arrayBuffer();
                 const productBase64 =
                     Buffer.from(productBuffer).toString("base64");
-                logTryOn("Imagen del producto cargada desde URL", "info");
-                return `data:image/jpeg;base64,${productBase64}`;
+                
+                // Detectar tipo MIME de la respuesta
+                const contentType = productResponse.headers.get('content-type') || 'image/jpeg';
+                
+                logTryOn("Imagen del producto cargada desde URL", "success");
+                return `data:${contentType};base64,${productBase64}`;
+            } else {
+                logTryOn(`Error HTTP: ${productResponse.status} ${productResponse.statusText}`, "warning");
             }
         } catch (urlError) {
             logTryOn(`Error cargando desde URL: ${urlError}`, "warning");
         }
 
+        // Método 2: Fallback - Intentar desde archivo local (solo funciona en local)
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                const productImagePath = path.join(
+                    process.cwd(),
+                    "public",
+                    productImageUrl,
+                );
+                if (fs.existsSync(productImagePath)) {
+                    const productBuffer = fs.readFileSync(productImagePath);
+                    const productBase64 = productBuffer.toString("base64");
+                    logTryOn(
+                        "Imagen del producto cargada desde archivo local (fallback)",
+                        "info",
+                    );
+                    return `data:image/jpeg;base64,${productBase64}`;
+                }
+            } catch (fsError) {
+                logTryOn(
+                    `Error en fallback de archivo local: ${fsError}`,
+                    "warning",
+                );
+            }
+        }
+
+        logTryOn("No se pudo cargar la imagen del producto por ningún método", "error");
         return null;
     } catch (error) {
         logTryOn(
             `Error general cargando imagen del producto: ${error}`,
-            "warning",
+            "error",
         );
         return null;
     }
