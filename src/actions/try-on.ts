@@ -194,15 +194,38 @@ export async function tryOn(formData: FormData): Promise<TryOnResponse> {
 
         logTryOn("Imágenes preparadas para análisis", "info");
 
-        // Try different prompt approaches with more explicit editing instructions
+        // Performance-optimized prompts for virtual try-on image generation
+        // Three strategic approaches with varying focus and complexity
         const tryDifferentPrompts = [
-            // Approach 1: Explicit editing command
+            // Approach 1: System-guided professional virtual try-on with clear hierarchy
+            {
+                role: "system" as const,
+                content: [
+                    {
+                        type: "text" as const,
+                        text: "You are an expert virtual try-on assistant specializing in realistic clothing visualization. Your role is to combine a reference photo of a person with a clothing item image to generate a photorealistic result showing the person wearing the new garment. Focus on natural fit, proper lighting matching, and maintaining the person's identity and pose.",
+                    },
+                ],
+            },
             {
                 role: "user" as const,
                 content: [
                     {
                         type: "text" as const,
-                        text: "EDIT THE IMAGE: You MUST modify the person in the first image by putting the clothing from the second image on them. Do NOT return the original image unchanged. You MUST create a NEW edited image showing the person wearing different clothes. This is an image editing task - the output must be visually different from the input.",
+                        text: `Generate a virtual try-on image using the following inputs:
+
+INPUT 1 (Person): A photo showing the user who wants to virtually try on clothing. Note their body type, current pose, lighting conditions, and background.
+
+INPUT 2 (Garment): An image of the clothing item to be virtually fitted onto the person from Input 1.
+
+OUTPUT REQUIREMENTS:
+- Create a realistic image of the person from Input 1 wearing the garment from Input 2
+- Preserve the person's face, skin tone, body proportions, and original pose
+- Match the garment's color, pattern, texture, and style exactly as shown in Input 2
+- Ensure natural draping and fit appropriate to the person's body type
+- Maintain consistent lighting and shadows with the original photo
+- Keep the original background unchanged
+- Output must be a single high-quality image showing the successful virtual try-on`,
                     },
                     {
                         type: "image_url" as const,
@@ -220,28 +243,47 @@ export async function tryOn(formData: FormData): Promise<TryOnResponse> {
                     },
                 ],
             },
-            // Approach 2: Step-by-step modification
+            // Approach 2: Technical specification with garment analysis focus
+            {
+                role: "system" as const,
+                content: [
+                    {
+                        type: "text" as const,
+                        text: "You are a technical virtual fitting expert. Analyze both the user's photo and the clothing item carefully. Extract garment details including cut, fabric type, color, pattern, and fit style. Generate a composite image that realistically applies the garment onto the user while maintaining technical accuracy in fit and drape.",
+                    },
+                ],
+            },
             {
                 role: "user" as const,
                 content: [
                     {
                         type: "text" as const,
-                        text: `CLOTHING SWAP TASK - YOU MUST MODIFY THE IMAGE:
+                        text: `VIRTUAL FITTING TASK - Technical Implementation
 
-STEP 1: Look at the person in the first image
-STEP 2: Look at the clothing item in the second image
-STEP 3: EDIT the first image by removing the person's current clothing
-STEP 4: EDIT the first image by adding the clothing from the second image onto the person
-STEP 5: Generate the MODIFIED result
+REFERENCE IMAGE: Photo of user (maintain: identity, pose, lighting, background)
+PRODUCT IMAGE: Clothing item to apply (analyze: style, fabric, fit, details)
 
-REQUIREMENTS:
-- The output image MUST be different from the input
-- You MUST change what the person is wearing
-- Keep the same person, pose, and background
-- Make the clothing fit naturally
-- This is an EDITING task, not just image generation
+TECHNICAL SPECIFICATIONS:
+1. Garment Analysis:
+   - Identify clothing type (shirt, pants, dress, jacket, etc.)
+   - Note fabric properties (texture, weight, drape characteristics)
+   - Extract color values and patterns accurately
+   - Determine appropriate fit (slim, regular, loose) based on garment style
 
-DO NOT return the original image. You MUST create an edited version.`,
+2. User Analysis:
+   - Maintain exact body proportions and posture
+   - Preserve facial features and skin tone
+   - Note current clothing for natural transition points
+   - Analyze lighting direction and intensity
+
+3. Composite Generation:
+   - Apply garment to appropriate body areas
+   - Ensure realistic fabric behavior (wrinkles, folds, tension)
+   - Match lighting and cast appropriate shadows
+   - Blend edges naturally at transition points
+   - Maintain photo-realistic quality throughout
+
+Deliver a single composite image showing the user wearing the analyzed garment naturally and realistically.`,
                     },
                     {
                         type: "image_url" as const,
@@ -259,26 +301,47 @@ DO NOT return the original image. You MUST create an edited version.`,
                     },
                 ],
             },
-            // Approach 3: Demanding visual change
+            // Approach 3: E-commerce focused with quality standards
+            {
+                role: "system" as const,
+                content: [
+                    {
+                        type: "text" as const,
+                        text: "You are a professional e-commerce virtual try-on generator. Your output should meet commercial photography standards suitable for online retail. Create images that help customers visualize how clothing items will look on them. Focus on accuracy, quality, and realistic representation.",
+                    },
+                ],
+            },
             {
                 role: "user" as const,
                 content: [
                     {
                         type: "text" as const,
-                        text: `MANDATORY IMAGE MODIFICATION:
+                        text: `E-COMMERCE VIRTUAL TRY-ON - Professional Output Required
 
-I need you to CHANGE the clothing on the person in the first image. Replace their outfit with the garment from the second image.
+CUSTOMER PHOTO: User wants to see how this item looks on them
+PRODUCT IMAGE: The retail clothing item to visualize
 
-CRITICAL REQUIREMENTS:
-- Output must be VISUALLY DIFFERENT from input
-- Person's clothing MUST change
-- Same person, new clothes
-- Realistic clothing fit and appearance
-- Professional photo quality
+COMMERCIAL QUALITY STANDARDS:
 
-WARNING: Returning the original unchanged image is NOT acceptable. You must produce an edited result showing the clothing change.
+Image Quality:
+- High resolution suitable for e-commerce display
+- Professional lighting and color accuracy
+- Clean composition with clear garment visibility
+- No artifacts, distortions, or unnatural transitions
 
-Perform the clothing modification now.`,
+Garment Representation:
+- Exact color and pattern reproduction from product image
+- Accurate depiction of style, cut, and design features
+- Proper scale and proportions relative to user's body
+- Realistic fabric behavior and drape
+
+User Preservation:
+- Customer's face and identity clearly recognizable
+- Natural skin tones and textures maintained
+- Original pose and body language preserved
+- Background context maintained for realistic context
+
+Output: A single, publication-ready image showing the customer wearing the product realistically. This image should help the customer make a confident purchase decision.`,
                     },
                     {
                         type: "image_url" as const,
@@ -324,8 +387,18 @@ Perform the clothing modification now.`,
             promptIndex: number,
         ): Promise<{ index: number; imageUrl?: string; error?: string }> => {
             try {
-                const messages = [tryDifferentPrompts[promptIndex]];
-                const temperature = 0.8 + promptIndex * 0.1;
+                // Each approach now contains 2 messages (system + user)
+                // promptIndex 0-1: Approach 1 (indices 0, 1)
+                // promptIndex 2-3: Approach 2 (indices 2, 3)
+                // promptIndex 4-5: Approach 3 (indices 4, 5)
+                const baseIndex = promptIndex * 2;
+                const messages = [
+                    tryDifferentPrompts[baseIndex],
+                    tryDifferentPrompts[baseIndex + 1],
+                ];
+                
+                // More conservative temperature progression for stability
+                const temperature = 0.7 + promptIndex * 0.05;
 
                 logTryOn(`Iniciando versión ${promptIndex + 1}...`, "info");
 
@@ -335,7 +408,7 @@ Perform the clothing modification now.`,
                         model: "google/gemini-2.5-flash-image",
                         messages,
                         max_tokens: 4000,
-                        temperature: Math.min(temperature, 1.0),
+                        temperature: Math.min(temperature, 0.85),
                     }),
                     createTimeoutPromise(45000), // 45 second timeout per image
                 ])) as unknown as OpenRouterResponse;
@@ -402,8 +475,10 @@ Perform the clothing modification now.`,
 
         // Execute all generations in parallel with overall timeout
         try {
-            const allPromises = tryDifferentPrompts.map((_, index) =>
-                generateImage(index),
+            // We now have 3 approaches, each with 2 messages (system + user)
+            // Generate 3 images, one for each approach
+            const allPromises = [0, 1, 2].map((approachIndex) =>
+                generateImage(approachIndex),
             );
 
             logTryOn(

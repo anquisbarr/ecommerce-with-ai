@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 import Image from "next/image";
 import { tryOn } from "@/actions/try-on";
 import { TryOnResponse } from "@/types";
 import { TryOnLoadingAnimation } from "./TryOnLoadingAnimation";
+import { WebcamCapture } from "./WebcamCapture";
+import { isMobileDevice, supportsMediaDevices } from "@/lib/device-detection";
 
 interface UploadImageFormProps {
   productId: string;
@@ -25,8 +27,16 @@ export function UploadImageForm({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const [showWebcam, setShowWebcam] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [hasMediaSupport, setHasMediaSupport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setIsMobile(isMobileDevice());
+    setHasMediaSupport(supportsMediaDevices());
+  }, []);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -107,10 +117,37 @@ export function UploadImageForm({
     }
   };
 
+  const handleCameraClick = () => {
+    // On mobile, use native camera input
+    if (isMobile) {
+      cameraInputRef.current?.click();
+    } else {
+      // On desktop, show webcam component if supported
+      if (hasMediaSupport) {
+        setShowWebcam(true);
+      } else {
+        setError("Tu navegador no soporta acceso a la cámara");
+      }
+    }
+  };
+
+  const handleWebcamCapture = (file: File) => {
+    const fakeEvent = {
+      target: { files: [file] },
+    } as unknown as React.ChangeEvent<HTMLInputElement>;
+    handleFileSelect(fakeEvent);
+  };
+
   return (
     <>
       {isPending && (
         <TryOnLoadingAnimation productName={productName} isFullScreen={true} />
+      )}
+      {showWebcam && (
+        <WebcamCapture
+          onCapture={handleWebcamCapture}
+          onClose={() => setShowWebcam(false)}
+        />
       )}
       <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity duration-300 ${isPending ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -323,7 +360,7 @@ export function UploadImageForm({
                   <div className="flex gap-3 max-w-md mx-auto">
                     <button
                       type="button"
-                      onClick={() => cameraInputRef.current?.click()}
+                      onClick={handleCameraClick}
                       disabled={isPending}
                       className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                     >
